@@ -35,11 +35,16 @@ def load_vgg(sess, vgg_path):
     vgg_layer7_out_tensor_name = 'layer7_out:0'
     
     vgg_model = tf.saved_model.loader.load(sess, ['vgg16'], vgg_path)
-    image_input = vgg_model.get_tensor_by_name(vgg_input_tensor_name)
-    keep_prob = vgg_model.get_tensor_by_name(vgg_keep_prob_tensor_name)
-    layer3_out = vgg_model.get_tensor_by_name(vgg_layer3_out_tensor_name)
-    layer4_out = vgg_model.get_tensor_by_name(vgg_layer4_out_tensor_name)
-    layer7_out = vgg_model.get_tensor_by_name(vgg_layer7_out_tensor_name)
+    # image_input = vgg_model.get_tensor_by_name(vgg_input_tensor_name)
+    # keep_prob = vgg_model.get_tensor_by_name(vgg_keep_prob_tensor_name)
+    # layer3_out = vgg_model.get_tensor_by_name(vgg_layer3_out_tensor_name)
+    # layer4_out = vgg_model.get_tensor_by_name(vgg_layer4_out_tensor_name)
+    # layer7_out = vgg_model.get_tensor_by_name(vgg_layer7_out_tensor_name)
+    input_image = tf.placeholder(tf.float32, name='image_input:0')
+    keep_prob = tf.placeholder(tf.float32, name='keep_prob:0')
+    layer3_out = tf.placeholder(tf.float32, name='layer3_out:0')
+    layer4_out = tf.placeholder(tf.float32, name='layer4_out:0')
+    layer7_out = tf.placeholder(tf.float32, name='layer7_out:0')
 
     return image_input, keep_prob, layer3_out, layer4_out, layer7_out
 tests.test_load_vgg(load_vgg, tf)
