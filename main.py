@@ -5,6 +5,8 @@ import helper
 import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
+import time
+import datetime
 
 
 # Check TensorFlow Version
@@ -144,8 +146,14 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     # TODO: Implement function
     keep_prob_val = 0.5
     lr = 0.001
+    
+    def time_stamp() -> str:
+        ts = time.time()
+        time_stamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        return time_stamp
+    
     for epoch in range(epochs):
-        print('Epoch {}'.format(epoch + 1))
+        print(time_stamp() + 'Epoch {}'.format(epoch + 1))
         total_loss = 0
         for image_batch, labels_batch in get_batches_fn(batch_size):
             _, cur_loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: image_batch,\
@@ -153,7 +161,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
             
             total_loss += cur_loss
         
-        print('Epoch{}: loss = {:.5f}'.format(epoch + 1, total_loss))
+        print(time_stamp() + 'Epoch{}: loss = {:.5f}'.format(epoch + 1, total_loss))
         print('-------------------------------------------------------')
     
     print('training finished')
