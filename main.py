@@ -118,7 +118,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     logits = tf.reshape(nn_last_layer, [-1, num_classes], name='fcn_logits')
     correct_label_reshaped = tf.reshape(correct_label, [-1, num_classes])
 
-    cross_entropy_loss = tf.nn.softmax_cross_entropy_with_logits(logits, labels=correct_label_reshaped)
+    cross_entropy_loss = tf.nn.softmax_cross_entropy_with_logits(labels=correct_label_reshaped, logits=logits)
     loss_op = tf.reduce_mean(cross_entropy_loss, name='fcn_loss')
     train_op = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss_op, name='fcn_train')
 
