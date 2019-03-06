@@ -44,7 +44,7 @@ def load_vgg(sess, vgg_path):
     
 
     return image_input, keep_prob, layer3_out, layer4_out, layer7_out
-    
+
 tests.test_load_vgg(load_vgg, tf)
 
 
@@ -59,32 +59,49 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     """
     # TODO: Implement function
     
-    # applies 1*1 convolution on fully-connected layers
-    fcn8 = tf.nn.conv2d(vgg_layer7_out, filter=[1, 1, vgg_layer7_out.get_shape().as_list()[-1],\
-        num_classes], name='fcn8')
+    # applies 1*1 convolution on fully-connected layers, 1/32
+    conv_1x1_vgg_7 = tf.layers.conv2d_transpose(vgg_layer7_out, filters=num_classes, kernel_size=1,\
+        padding = 'same', kernel_initializer= tf.random_normal_initializer(stddev=0.01),\
+        kernel_regularizer= tf.contrib.layers.l2_regularizer(1e-3),\
+        name='conv_1x1_vgg_7')
     
-    # upsamples fcn8 by 2
-    fcn9 = tf.nn.conv2d_transpose(fcn8, filter=[4, 4, fcn8.get_shape().as_list()[-1], vgg_layer4_out.get_shape().as_list()[-1]],\
-        strides=[1, 2, 2, 1], padding='same', name='fcn9')
+    # upsamples deconvolution by 2
+    first_upsample_x2 = tf.layers.conv2d_transpose(conv_1x1_vgg_7, filters=num_classes, kernel_size=4,\
+        strides=(2, 2), padding='same', kernel_initializer= tf.random_normal_initializer(stddev=0.01),\
+        kernel_regularizer= tf.contrib.layers.l2_regularizer(1e-3),\
+        name='first_upsample_x2')
     
-    # adds a skip connection
-    fcn9_skip_connection = tf.add(fcn9, vgg_layer4_out, name='fcn9_plus_vgg_layer4')
+    # applies 1*1 convolution on vgg 4 output
+    conv_1x1_vgg_4 = tf.layers.conv2d_transpose(vgg_layer4_out, filters=num_classes, kernel_size=1,\
+        padding='same', kernel_initializer= tf.random_normal_initializer(stddev=0.01),\
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),\
+        name='conv_1x1_vgg_4')
+    
+    # the first skip layer, 1/16
+    first_skip = tf.add(first_upsample_x2, conv_1x1_vgg_4, name='first_skip')
 
-    # upsamples fcn9_plus_vgg_layer4 by 2, to fit the dimension of vgg_layer3
-    fcn10 = tf.nn.conv2d_transpose(fcn9_skip_connection,\
-        filter=[4, 4, fcn9_skip_connection.get_shape.as_list()[-1],\
-        vgg_layer3_out.get_shape().as_list()[-1]], strides=[1, 2, 2, 1],\
-        padding='same', name='fcn10')
+    # upsample deconvolution by 2, again
+    second_upsample_x2 = tf.layers.conv2d_transpose(first_skip, filters=num_classes, kernel_size=4,\
+        strides=(2, 2), padding='same', kernel_initializer= tf.random_normal_initializer(stddev=0.01),\
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),\
+        name='second_upsample_x2')
     
-    # adds a skip connection again
-    fcn10_skip_connection = tf.add(fcn10, vgg_layer3_out, name='fcn10_skip_connection')
+    # applies 1*1 convolution on vgg3 output
+    conv_1x1_vgg_3 = tf.layers.conv2d_transpose(vgg_layer3_out, filters=num_classes, kernel_size=1,\
+        padding='same', kernel_initializer= tf.random_normal_initializer(stddev=0.01),\
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),\
+        name='conv_1x1_vgg_3')
+    
+    # the second skip layer, 1/8
+    second_skip = tf.add(second_upsample_x2, conv_1x1_vgg_3, name='second_skip')
 
-    # upsamples fcn10_skip_connection to the input image size
-    fcn11 = tf.nn.conv2d_transpose(fcn10_skip_connection,\
-        filter=[16, 16, fcn10_skip_connection.get_shape().as_list()[-1], num_classes],\
-        strides=[1, 8, 8, 1], padding='same', name='fcn11')
+    # upsample deconvolution by 8
+    third_upsample_x8 = tf.layers.conv2d_transpose(second_skip, filters=num_classes, kernel_size=16,\
+        strides=(8, 8), padding='same', kernel_initializer= tf.random_normal_initializer(stddev=0.01),\
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3),\
+        name='third_upsample_x8')
     
-    return fcn11
+    return third_upsample_x8
 tests.test_layers(layers)
 
 
@@ -102,7 +119,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     correct_label_reshaped = tf.reshape(correct_label, [-1, num_classes])
 
     cross_entropy_loss = tf.nn.softmax_cross_entropy_with_logits(logits, labels=correct_label_reshaped)
-    loss_op = tf.math.reduce_mean(cross_entropy_loss, name='fcn_loss')
+    loss_op = tf.reduce_mean(cross_entropy_loss, name='fcn_loss')
     train_op = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss_op, name='fcn_train')
 
     return logits, train_op, loss_op
@@ -128,15 +145,18 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     keep_prob_val = 0.5
     lr = 0.001
     for epoch in range(epochs):
+        print('Epoch {}'.format(epoch + 1))
         total_loss = 0
-        for X_batch, labels_batch in get_batches_fn(batch_size):
-            _, cur_loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: X_batch,\
+        for image_batch, labels_batch in get_batches_fn(batch_size):
+            _, cur_loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image: image_batch,\
                 correct_label: labels_batch, keep_prob: keep_prob_val, learning_rate: lr})
             
             total_loss += cur_loss
         
-        print('Epoch{}: loss = {:.5f}'.format(epoch, total_loss))
+        print('Epoch{}: loss = {:.5f}'.format(epoch + 1, total_loss))
         print('-------------------------------------------------------')
+    
+    print('training finished')
     
 
 tests.test_train_nn(train_nn)
@@ -166,10 +186,11 @@ def run():
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
         # TODO: Build NN using load_vgg, layers, and optimize function
+        # placeholders
+        correct_label = tf.placeholder(tf.float32, [None, image_shape[0], image_shape[1], num_classes], name='correct_label')
+        learning_rate = tf.placeholder(tf.float32, name='learning_rate')
+
         image_input, keep_prob, layer3, layer4, layer7 = load_vgg(session, vgg_path)
-        correct_label = tf.placeholder(tf.float32, [None, image_shape[0], image_shape[1], num_classes])
-        keep_prob = tf.placeholder(tf.float32)
-        learning_rate = tf.placeholder(tf.float32)
         
         model_outputs = layers(layer3, layer4, layer7, num_classes)
 
@@ -177,10 +198,11 @@ def run():
         # TODO: Train NN using the train_nn function
         # initializes all of variables
         global_init = tf.global_variables_initializer()
-        local_init = tf.local_variables_initializer()
-        session.run([global_init, local_init])
+        session.run([global_init])
         print("Model build successful, starting training.")
-        train_nn(session, 30, 16, get_batches_fn, train_op, loss_op, image_input, correct_label,\
+        epochs = 30
+        batch_size = 16
+        train_nn(session, epochs, batch_size, get_batches_fn, train_op, loss_op, image_input, correct_label,\
             keep_prob, learning_rate)
         # TODO: Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, session, image_shape, logits, keep_prob, image_input)
