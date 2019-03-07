@@ -90,6 +90,9 @@ ENV/
 # vscode
 .vscode/
 
+# export directory for the trained segmentation model
+./seg_model
+
 # Spyder project settings
 .spyderproject
 .spyproject

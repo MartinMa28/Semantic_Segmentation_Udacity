@@ -175,6 +175,7 @@ def run():
     image_shape = (160, 576)  # KITTI dataset uses 160x576 images
     data_dir = './data'
     runs_dir = './runs'
+    export_dir = './seg_model/vgg_FCN'
     tests.test_for_kitti_dataset(data_dir)
 
     # Download pretrained vgg model
@@ -215,6 +216,14 @@ def run():
         # TODO: Save inference data using helper.save_inference_samples
         helper.save_inference_samples(runs_dir, data_dir, session, image_shape, logits, keep_prob, image_input)
         print("All done!")
+
+        # save the trained segmentation model
+        builder = tf.saved_model.builder.SavedModelBuilder(export_dir)
+        signature = tf.saved_model.signature_def_utils.predict_signature_def(inputs={'image_input': image_input},\
+            outputs={'output_layer': model_outputs})
+        builder.add_meta_graph_and_variables(session, tags=['FCN_Udacity'],\
+            signature_def_map={'predict': signature})
+        builder.save()
 
         # OPTIONAL: Apply the trained model to a video
 
